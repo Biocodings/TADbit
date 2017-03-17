@@ -369,7 +369,7 @@ def save_qc_to_db(opts, fig_path, dangling_ends, ligated, launch_time, finish_ti
         # check if table exists
         cur = con.cursor()
         cur.execute("""SELECT name FROM sqlite_master WHERE
-                       type='table' AND name='FASTQ_QCs'""")
+                       type='table' AND name='DESCRIPTIVE_STATs'""")
         if not cur.fetchall():
             try:
                 cur.execute("""
@@ -389,17 +389,13 @@ def save_qc_to_db(opts, fig_path, dangling_ends, ligated, launch_time, finish_ti
             except lite.OperationalError:
                 pass
             cur.execute("""
-            create table FASTQ_QCs
+            create table DESCRIPTIVE_STATs
                (Id integer primary key,
-                FASTQ_PATHid int,
-                Nreads int,
-                Dangling_Ends int,
-                Ligateds int,
-                Read int,
-                Enzyme text,
-                WRKDIRid int,
-                PLOT_OUTPUTid int,
-                unique (FASTQ_PATHid,Read,Nreads,Enzyme,WRKDIRid,PLOT_OUTPUTid))""")
+                JOBid int,
+                Statistic text,
+                Value text,
+                TEXT_OUTPUTid int,
+                PLOT_OUTPUTid int)""")
         try:
             parameters = digest_parameters(opts, get_md5=False)
             param_hash = digest_parameters(opts, get_md5=True)
@@ -420,16 +416,20 @@ def save_qc_to_db(opts, fig_path, dangling_ends, ligated, launch_time, finish_ti
 
         try:
             cur.execute("""
-    insert into FASTQ_QCs
-     (Id  , FASTQ_PATHid, Nreads, Dangling_Ends, Ligateds, Read, Enzyme, WRKDIRid, PLOT_OUTPUTid)
+    insert into DESCRIPTIVE_STATs
+     (Id  , JOBid, Statistic               ,   Value, PLOT_OUTPUTid, TEXT_OUTPUTid)
     values
-     (NULL,           %d,     %d,            %d,       %d,   %d,   '%s',       %d,            %d)
-     """ % (get_path_id(cur, opts.fastq, opts.workdir), opts.nreads, dangling_ends,
-            ligated, opts.read, opts.renz, get_path_id(cur, opts.workdir),
-            get_path_id(cur, fig_path, opts.workdir)))
+     (NULL,    %d, 'FASTQ QC Dangling-Ends', '%d/%d',            %d,          NULL)
+     """ % (jobid, dangling_ends, opts.nreads, get_path_id(cur, fig_path, opts.workdir)))
+            cur.execute("""
+    insert into DESCRIPTIVE_STATs
+     (Id  , JOBid, Statistic          ,   Value, PLOT_OUTPUTid, TEXT_OUTPUTid)
+    values
+     (NULL,    %d, 'FASTQ QC Ligateds', '%d/%d',            %d,          NULL)
+     """ % (jobid, ligated, opts.nreads, get_path_id(cur, fig_path, opts.workdir)))
         except lite.IntegrityError:
             pass
-        print_db(cur, 'FASTQ_QCs')
+        print_db(cur, 'DESCRIPTIVE_STATs')
         print_db(cur, 'PATHs' )
         print_db(cur, 'JOBs'  )
     if 'tmpdb' in opts and opts.tmpdb:

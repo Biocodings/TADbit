@@ -98,27 +98,17 @@ def save_to_db(opts, count, multiples, reads, mreads, n_valid_pairs, masked,
     con = lite.connect(dbfile)
     with con:
         cur = con.cursor()
-        cur.execute("""SELECT name FROM sqlite_master WHERE
-                       type='table' AND name='INTERSECTION_OUTPUTs'""")
-        if not cur.fetchall():
+        try:
             cur.execute("""
-        create table INTERSECTION_OUTPUTs
-           (Id integer primary key,
-            PATHid int,
-            Total_interactions int,
-            Multiple_interactions text,
-            Median_fragment_length,
-            MAD_fragment_length,
-            Max_fragment_length,
-            unique (PATHid))""")
-            cur.execute("""
-        create table FILTER_OUTPUTs
-           (Id integer primary key,
-            PATHid int,
-            Name text,
-            Count int,
-            JOBid int,
-            unique (PATHid))""")
+            create table DESCRIPTIVE_STATs
+               (Id integer primary key,
+                JOBid int,
+                Statistic text,
+                Value text,
+                TEXT_OUTPUTid int,
+                PLOT_OUTPUTid int)""")
+        except lite.OperationalError:
+            pass
         try:
             parameters = digest_parameters(opts, get_md5=False)
             param_hash = digest_parameters(opts, get_md5=True )            
@@ -134,86 +124,68 @@ def save_to_db(opts, count, multiples, reads, mreads, n_valid_pairs, masked,
             pass
 
         jobid = get_jobid(cur)
-        
+
         add_path(cur, mreads, '2D_BED', jobid, opts.workdir)
         add_path(cur,  reads, '2D_BED', jobid, opts.workdir)
         add_path(cur, hist_path, 'FIGURE', jobid, opts.workdir)
-        try:
-            cur.execute("""
-            insert into INTERSECTION_OUTPUTs
-            (Id  , PATHid, Total_interactions, Multiple_interactions, Median_fragment_length, MAD_fragment_length, Max_fragment_length)
-            values
-            (NULL,    %d,                  %d,                  '%s',                     %d,                  %d,                  %d)
-            """ % (get_path_id(cur, mreads, opts.workdir),
-                   count, ' '.join(['%s:%d' % (k, multiples[k])
-                                    for k in sorted(multiples)]),
-                   median, mad, max_f))
-        except lite.IntegrityError:
-            print 'WARNING: already filtered'
-            if opts.force:
-                cur.execute(
-                    'delete from INTERSECTION_OUTPUTs where PATHid = %d' % (
-                        get_path_id(cur, mreads, opts.workdir)))
-                cur.execute("""
-                insert into INTERSECTION_OUTPUTs
-                (Id  , PATHid, Total_interactions, Multiple_interactions, Median_fragment_length, MAD_fragment_length, Max_fragment_length)
-                values
-                (NULL,    %d,                  %d,                  '%s',                     %d,                  %d,                  %d)
-                """ % (get_path_id(cur, mreads, opts.workdir),
-                       count, ' '.join(['%s:%d' % (k, multiples[k])
-                                        for k in sorted(multiples)]),
-                       median, mad, max_f))
+        cur.execute("""
+        insert into DESCRIPTIVE_STATs
+        (Id  , JOBid, Statistic,                Value, TEXT_OUTPUTid, PLOT_OUTPUTid)
+        values
+        (NULL,    %d, 'Multiple interactions',   '%s',           %d,         NULL)
+        """ % (jobid, ' '.join(['%s:%d' % (k, multiples[k])
+                                for k in sorted(multiples)]),
+               get_path_id(cur, mreads, opts.workdir)))
+        cur.execute("""
+        insert into DESCRIPTIVE_STATs
+        (Id  , JOBid, Statistic,                Value, TEXT_OUTPUTid, PLOT_OUTPUTid)
+        values
+        (NULL,    %d, 'Total interactions',   '%s',           %d,         NULL)
+        """ % (jobid, count, get_path_id(cur, mreads, opts.workdir)))
+
+        cur.execute("""
+        insert into DESCRIPTIVE_STATs
+        (Id  , JOBid, Statistic,                Value, TEXT_OUTPUTid, PLOT_OUTPUTid)
+        values
+        (NULL,    %d, 'Median fragment length',   '%s',           NULL,            %d)
+        """ % (jobid, median, get_path_id(cur, hist_path, opts.workdir)))
+
+        cur.execute("""
+        insert into DESCRIPTIVE_STATs
+        (Id  , JOBid, Statistic,                Value, TEXT_OUTPUTid, PLOT_OUTPUTid)
+        values
+        (NULL,    %d, 'MAD fragment length',   '%s',           NULL,            %d)
+        """ % (jobid, mad, get_path_id(cur, hist_path, opts.workdir)))
+
+        cur.execute("""
+        insert into DESCRIPTIVE_STATs
+        (Id  , JOBid, Statistic             , Value, TEXT_OUTPUTid, PLOT_OUTPUTid)
+        values
+        (NULL,    %d, 'Max_fragment_length',   '%s',         NULL,           %d)
+        """ % (jobid, max_f, get_path_id(cur, hist_path, opts.workdir)))
+
         for f in masked:
             add_path(cur, masked[f]['fnam'], 'FILTER', jobid, opts.workdir)
-            try:
-                cur.execute("""
-            insert into FILTER_OUTPUTs
-            (Id  , PATHid, Name, Count, JOBid)
-            values
-            (NULL,    %d,     '%s',      '%s', %d)
-                """ % (get_path_id(cur, masked[f]['fnam'], opts.workdir),
-                       masked[f]['name'], masked[f]['reads'], jobid))
-            except lite.IntegrityError:
-                print 'WARNING: already filtered'
-                if opts.force:
-                    cur.execute(
-                        'delete from FILTER_OUTPUTs where PATHid = %d' % (
-                            get_path_id(cur, masked[f]['fnam'], opts.workdir)))
-                    cur.execute("""
-                insert into FILTER_OUTPUTs
-                (Id  , PATHid, Name, Count, JOBid)
-                values
-                (NULL,    %d,     '%s',      '%s', %d)
-                    """ % (get_path_id(cur, masked[f]['fnam'], opts.workdir),
-                           masked[f]['name'], masked[f]['reads'], jobid))
-        try:
             cur.execute("""
-        insert into FILTER_OUTPUTs
-        (Id  , PATHid, Name, Count, JOBid)
+            insert into DESCRIPTIVE_STATs
+            (Id  , JOBid, Statistic, Value, TEXT_OUTPUTid, PLOT_OUTPUTid)
+            values
+            (NULL,    %d,     '%s',      '%s', %d, NULL)
+            """ % (jobid, masked[f]['name'], masked[f]['reads'],
+                   get_path_id(cur, masked[f]['fnam'], opts.workdir)))
+        cur.execute("""
+        insert into DESCRIPTIVE_STATs
+        (Id  , JOBid, Statistic, Value, TEXT_OUTPUTid, PLOT_OUTPUTid)
         values
-        (NULL,    %d,     '%s',      '%s', %d)
-            """ % (get_path_id(cur, mreads, opts.workdir),
-                   'valid-pairs', n_valid_pairs, jobid))
-        except lite.IntegrityError:
-            print 'WARNING: already filtered'
-            if opts.force:
-                cur.execute(
-                    'delete from FILTER_OUTPUTs where PATHid = %d' % (
-                        get_path_id(cur, mreads, opts.workdir)))
-                cur.execute("""
-                insert into FILTER_OUTPUTs
-                (Id  , PATHid, Name, Count, JOBid)
-                values
-                (NULL,    %d,     '%s',      '%s', %d)
-                """ % (get_path_id(cur, mreads, opts.workdir),
-                       'valid-pairs', n_valid_pairs, jobid))
+        (NULL,    %d,     '%s',      '%s', %d, NULL)
+        """ % (jobid, 'valid-pairs', n_valid_pairs,
+               get_path_id(cur, mreads, opts.workdir)))
         print_db(cur, 'MAPPED_INPUTs')
         print_db(cur, 'PATHs')
         print_db(cur, 'MAPPED_OUTPUTs')
         print_db(cur, 'PARSED_OUTPUTs')
         print_db(cur, 'JOBs')
-        print_db(cur, 'INTERSECTION_OUTPUTs')        
-        print_db(cur, 'FILTER_OUTPUTs')
+        print_db(cur, 'DESCRIPTIVE_STATs')
     if 'tmpdb' in opts and opts.tmpdb:
         # copy back file
         copyfile(dbfile, path.join(opts.workdir, 'trace.db'))
