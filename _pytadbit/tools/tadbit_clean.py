@@ -39,7 +39,7 @@ def run(opts):
 
         # get PATHids corresponding to JOBid:
         paths = []
-        protected_types = ['INDEX', 'FASTA', 'MAPPED_FASTQ', 'WORKDIR']
+        protected_types = ['INDEX', 'FASTA', 'UNMAPPED', 'WORKDIR']
         for jobid in opts.jobids:
             cur.execute("SELECT Id, Path, Type FROM PATHs WHERE JOBid=%s" % jobid)
             paths.extend([p for p in cur.fetchall()])

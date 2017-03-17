@@ -19,17 +19,18 @@ DESC = "Describe jobs and results in a given working directory"
 TABLE_IDX = {
     '1' : 'paths',
     '2' : 'jobs',
-    '3' : 'mapped_outputs',
-    '4' : 'mapped_inputs',
-    '5' : 'parsed_outputs',
-    '6' : 'intersection_outputs',
-    '7' : 'filter_outputs',
-    '8' : 'normalize_outputs',
-    '9' : 'merge_stats',
-    '10': 'merge_outputs',
-    '11': 'segment_outputs',
-    '12': 'models',
-    '13': 'modeled_regions'}
+    '3' : 'fastq_qcs',
+    '4' : 'mapped_outputs',
+    '5' : 'mapped_inputs',
+    '6' : 'parsed_outputs',
+    '7' : 'intersection_outputs',
+    '8' : 'filter_outputs',
+    '9' : 'normalize_outputs',
+    '10': 'merge_stats',
+    '11': 'merge_outputs',
+    '12': 'segment_outputs',
+    '13': 'models',
+    '14': 'modeled_regions'}
 
 
 

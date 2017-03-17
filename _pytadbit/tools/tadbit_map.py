@@ -26,7 +26,7 @@ from pytadbit.mapping.full_mapper         import full_mapping
 from pytadbit.utils.sqlite_utils          import get_path_id, add_path, print_db
 from pytadbit.utils.sqlite_utils          import get_jobid, already_run, digest_parameters
 from pytadbit                             import get_dependencies_version
-from os                                   import system, path, remove
+from os                                   import path, remove
 from string                               import ascii_letters
 from random                               import random
 from shutil                               import copyfile
@@ -46,51 +46,55 @@ def run(opts):
     param_hash = digest_parameters(opts, get_md5=True)
 
     if opts.quality_plot:
+        mkdir(path.join(opts.workdir, '01_mapped_r%d' % (opts.read)))
+        fig_path = path.join(opts.workdir, '01_mapped_r%d' % (opts.read),
+                            path.split(opts.fastq)[-1] + '_%s.pdf' % (param_hash))
+        
         logging.info('Generating Hi-C QC plot at:\n  ' +
                path.join(opts.workdir, path.split(opts.fastq)[-1] + '.pdf'))
         dangling_ends, ligated = quality_plot(opts.fastq, r_enz=opts.renz,
-                                              nreads=100000, paired=False,
-                                              savefig=path.join(
-                                                  opts.workdir,
-                                                  path.split(opts.fastq)[-1] + '.pdf'))
+                                              nreads=opts.nreads, paired=False,
+                                              savefig=fig_path)
         logging.info('  - Dangling-ends (sensu-stricto): %.3f%%', dangling_ends)
         logging.info('  - Ligation sites: %.3f%%', ligated)
-        return
-
-    logging.info('mapping %s read %s to %s', opts.fastq, opts.read, opts.workdir)
-
-    outfiles = full_mapping(opts.index, opts.fastq,
-                            path.join(opts.workdir,
-                                      '01_mapped_r%d' % (opts.read)),
-                            r_enz=opts.renz, temp_dir=opts.tmp, nthreads=opts.cpus,
-                            frag_map=not opts.iterative, clean=not opts.keep_tmp,
-                            windows=opts.windows, get_nread=True, skip=opts.skip,
-                            suffix=param_hash, **opts.gem_param)
-
-    # adjust line count
-    if opts.skip:
-        for i, (out, _) in enumerate(outfiles[1:], 1):
-            outfiles[i] = out, outfiles[i-1][1] - sum(1 for _ in open(outfiles[i-1][0]))
-
-    finish_time = time.localtime()
-
-    # save all job information to sqlite DB
-    save_to_db(opts, outfiles, launch_time, finish_time)
-
-    # write machine log
-    while path.exists(path.join(opts.workdir, '__lock_log')):
-        time.sleep(0.5)
-    open(path.join(opts.workdir, '__lock_log'), 'a').close()
-    with open(path.join(opts.workdir, 'trace.log'), "a") as mlog:
-        mlog.write('\n'.join([
-            ('# MAPPED READ%s\t%d\t%s' % (opts.read, num, out))
-            for out, num in outfiles]) + '\n')
-    # release lock
-    try:
-        remove(path.join(opts.workdir, '__lock_log'))
-    except OSError:
-        pass
-
+        finish_time = time.localtime()
+        save_qc_to_db(opts, fig_path, int(dangling_ends * opts.nreads / 100.),
+                      int(ligated * opts.nreads / 100.), launch_time, finish_time)
+    else:
+        logging.info('mapping %s read %s to %s', opts.fastq, opts.read, opts.workdir)
+    
+        outfiles = full_mapping(opts.index, opts.fastq,
+                                path.join(opts.workdir,
+                                          '01_mapped_r%d' % (opts.read)),
+                                r_enz=opts.renz, temp_dir=opts.tmp, nthreads=opts.cpus,
+                                frag_map=not opts.iterative, clean=not opts.keep_tmp,
+                                windows=opts.windows, get_nread=True, skip=opts.skip,
+                                suffix=param_hash, **opts.gem_param)
+    
+        # adjust line count
+        if opts.skip:
+            for i, (out, _) in enumerate(outfiles[1:], 1):
+                outfiles[i] = out, outfiles[i-1][1] - sum(1 for _ in open(outfiles[i-1][0]))
+    
+        finish_time = time.localtime()
+    
+        # save all job information to sqlite DB
+        save_to_db(opts, outfiles, launch_time, finish_time)
+    
+        # write machine log
+        while path.exists(path.join(opts.workdir, '__lock_log')):
+            time.sleep(0.5)
+        open(path.join(opts.workdir, '__lock_log'), 'a').close()
+        with open(path.join(opts.workdir, 'trace.log'), "a") as mlog:
+            mlog.write('\n'.join([
+                ('# MAPPED READ%s\t%d\t%s' % (opts.read, num, out))
+                for out, num in outfiles]) + '\n')
+        # release lock
+        try:
+            remove(path.join(opts.workdir, '__lock_log'))
+        except OSError:
+            pass
+    
     # clean
     # if not opts.keep_tmp:
     #     logging.info('cleaning temporary files')
@@ -115,6 +119,11 @@ def populate_args(parser):
     glopts.add_argument('--qc_plot', dest='quality_plot', action='store_true',
                       default=False,
                       help='generate a quality plot of FASTQ and exits')
+
+    glopts.add_argument('--nreads', dest='nreads',
+                        default=100000, type=int, 
+                        help='''[%(default)s] Number of reads to process format 
+                        QC anlysis''')
 
     glopts.add_argument('-w', '--workdir', dest='workdir', metavar="PATH",
                         action='store', default=None, type=str, required=True,
@@ -337,6 +346,103 @@ def check_options(opts):
         exit('WARNING: exact same job already computed, see JOBs table above')
 
 
+def save_qc_to_db(opts, fig_path, dangling_ends, ligated, launch_time, finish_time):
+    """
+    write little DB to keep track of processes and options
+    """
+    if 'tmpdb' in opts and opts.tmpdb:
+        # check lock
+        while path.exists(path.join(opts.workdir, '__lock_db')):
+            time.sleep(0.5)
+        # close lock
+        open(path.join(opts.workdir, '__lock_db'), 'a').close()
+        # tmp file
+        dbfile = opts.tmpdb
+        try: # to copy in case read1 was already mapped for example
+            copyfile(path.join(opts.workdir, 'trace.db'), dbfile)
+        except IOError:
+            pass
+    else:
+        dbfile = path.join(opts.workdir, 'trace.db')
+    con = lite.connect(dbfile)
+    with con:
+        # check if table exists
+        cur = con.cursor()
+        cur.execute("""SELECT name FROM sqlite_master WHERE
+                       type='table' AND name='FASTQ_QCs'""")
+        if not cur.fetchall():
+            try:
+                cur.execute("""
+                create table PATHs
+                   (Id integer primary key,
+                    JOBid int, Path text, Type text,
+                    unique (Path))""")
+                cur.execute("""
+                create table JOBs
+                   (Id integer primary key,
+                    Parameters text,
+                    Launch_time text,
+                    Finish_time text,
+                    Type text,
+                    Parameters_md5 text,
+                    unique (Parameters_md5))""")
+            except lite.OperationalError:
+                pass
+            cur.execute("""
+            create table FASTQ_QCs
+               (Id integer primary key,
+                FASTQ_PATHid int,
+                Nreads int,
+                Dangling_Ends int,
+                Ligateds int,
+                Read int,
+                Enzyme text,
+                WRKDIRid int,
+                PLOT_OUTPUTid int,
+                unique (FASTQ_PATHid,Read,Nreads,Enzyme,WRKDIRid,PLOT_OUTPUTid))""")
+        try:
+            parameters = digest_parameters(opts, get_md5=False)
+            param_hash = digest_parameters(opts, get_md5=True)
+            cur.execute("""
+    insert into JOBs
+     (Id  , Parameters, Launch_time, Finish_time, Type , Parameters_md5)
+    values
+     (NULL,       '%s',        '%s',        '%s', 'FASTQ_QC',           '%s')
+     """ % (parameters,
+            time.strftime("%d/%m/%Y %H:%M:%S", launch_time),
+            time.strftime("%d/%m/%Y %H:%M:%S", finish_time), param_hash))
+        except lite.IntegrityError:
+            pass
+        jobid = get_jobid(cur)
+        add_path(cur, opts.workdir, 'WORKDIR', jobid)
+        add_path(cur, opts.fastq  , 'UNMAPPED' , jobid, opts.workdir)
+        add_path(cur, fig_path    , 'FIGURE' , jobid, opts.workdir)
+
+        try:
+            cur.execute("""
+    insert into FASTQ_QCs
+     (Id  , FASTQ_PATHid, Nreads, Dangling_Ends, Ligateds, Read, Enzyme, WRKDIRid, PLOT_OUTPUTid)
+    values
+     (NULL,           %d,     %d,            %d,       %d,   %d,   '%s',       %d,            %d)
+     """ % (get_path_id(cur, opts.fastq, opts.workdir), opts.nreads, dangling_ends,
+            ligated, opts.read, opts.renz, get_path_id(cur, opts.workdir),
+            get_path_id(cur, fig_path, opts.workdir)))
+        except lite.IntegrityError:
+            pass
+        print_db(cur, 'FASTQ_QCs')
+        print_db(cur, 'PATHs' )
+        print_db(cur, 'JOBs'  )
+    if 'tmpdb' in opts and opts.tmpdb:
+        # copy back file
+        copyfile(dbfile, path.join(opts.workdir, 'trace.db'))
+        remove(dbfile)
+    # release lock
+    try:
+        remove(path.join(opts.workdir, '__lock_db'))
+    except OSError:
+        pass
+
+
 def save_to_db(opts, outfiles, launch_time, finish_time):
     """
     write little DB to keep track of processes and options
@@ -362,20 +468,23 @@ def save_to_db(opts, outfiles, launch_time, finish_time):
         cur.execute("""SELECT name FROM sqlite_master WHERE
                        type='table' AND name='MAPPED_INPUTs'""")
         if not cur.fetchall():
-            cur.execute("""
-            create table PATHs
-               (Id integer primary key,
-                JOBid int, Path text, Type text,
-                unique (Path))""")
-            cur.execute("""
-            create table JOBs
-               (Id integer primary key,
-                Parameters text,
-                Launch_time text,
-                Finish_time text,
-                Type text,
-                Parameters_md5 text,
-                unique (Parameters_md5))""")
+            try:
+                cur.execute("""
+                create table PATHs
+                   (Id integer primary key,
+                    JOBid int, Path text, Type text,
+                    unique (Path))""")
+                cur.execute("""
+                create table JOBs
+                   (Id integer primary key,
+                    Parameters text,
+                    Launch_time text,
+                    Finish_time text,
+                    Type text,
+                    Parameters_md5 text,
+                    unique (Parameters_md5))""")
+            except lite.OperationalError:
+                pass
             cur.execute("""
             create table MAPPED_INPUTs
                (Id integer primary key,
@@ -404,9 +513,9 @@ def save_to_db(opts, outfiles, launch_time, finish_time):
         except lite.IntegrityError:
             pass
         jobid = get_jobid(cur)
-        add_path(cur, opts.workdir, 'WORKDIR', jobid)
-        add_path(cur, opts.fastq  ,  'MAPPED_FASTQ' , jobid, opts.workdir)
-        add_path(cur, opts.index  , 'INDEX'  , jobid, opts.workdir)
+        add_path(cur, opts.workdir, 'WORKDIR' , jobid)
+        add_path(cur, opts.fastq  , 'UNMAPPED', jobid, opts.workdir)
+        add_path(cur, opts.index  , 'INDEX'   , jobid, opts.workdir)
         for i, (out, num) in enumerate(outfiles):
             try:
                 window = opts.windows[i]
