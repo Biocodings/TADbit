@@ -21,14 +21,13 @@ TABLE_IDX = {
     '2' : 'jobs',
     '3' : 'descriptive_stats',
     '4' : 'mapped_outputs',
-    '5' : 'mapped_inputs',
-    '6' : 'parsed_outputs',
-    '7' : 'normalize_outputs',
-    '8' : 'merge_stats',
-    '9' : 'merge_outputs',
-    '10': 'segment_outputs',
-    '11': 'models',
-    '12': 'modeled_regions'}
+    '5' : 'parsed_outputs',
+    '6' : 'normalize_outputs',
+    '7' : 'merge_stats',
+    '8' : 'merge_outputs',
+    '9' : 'segment_outputs',
+    '10': 'models',
+    '11': 'modeled_regions'}
 
 
 

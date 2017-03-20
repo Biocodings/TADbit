@@ -162,13 +162,25 @@ def religated(r_enz):
     return beg + site[min(len(beg), len(end)) : max(len(beg), len(end))] + end
 
 
+def format_re(name):
+    """
+    format RE name
+    """
+    name = name.lower()
+    for k in RESTRICTION_ENZYMES:
+        if k.lower() == name:
+            return k
+    raise KeyError('Restriction Enzyme %s not found\n' % (name))
+
+
 class RE_dict(dict):
     def __getitem__(self, i):
         try:
             return super(RE_dict, self).__getitem__(i)
         except KeyError:
+            i = i.lower()
             for nam in self:
-                if nam.lower() == i.lower():
+                if nam.lower() == i:
                     return self[nam]
             raise KeyError('Restriction Enzyme %s not found\n' % (i))
     

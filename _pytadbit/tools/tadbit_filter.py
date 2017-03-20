@@ -196,6 +196,7 @@ def save_to_db(opts, count, multiples, reads, mreads, n_valid_pairs, masked,
     except OSError:
         pass
 
+    
 def load_parameters_fromdb(opts):
     if 'tmpdb' in opts and opts.tmpdb:
         dbfile = opts.tmpdb
@@ -233,6 +234,7 @@ def load_parameters_fromdb(opts):
                 raise IOError('ERROR: unput file_handling does not exist')
 
     return fname1, fname2
+
 
 def populate_args(parser):
     """
@@ -309,6 +311,7 @@ def populate_args(parser):
                         second for read 2.''')    
 
     parser.add_argument_group(glopts)
+
 
 def check_options(opts):
 

@@ -178,15 +178,31 @@ def save_to_db(opts, counts, multis, f_names1, f_names2, out_file1, out_file2,
             try:
                 sum_reads = 0
                 for i, item in enumerate(counts[count]):
+                    pathid = get_path_id(cur, fnames[count][i], opts.workdir)
+                    bedid = get_path_id(cur, outfiles[count], opts.workdir)
                     cur.execute("""
                     insert into MAPPED_OUTPUTs
                     (Id  , PATHid, BEDid, Uniquely_mapped)
                     values
                     (NULL,    %d,     %d,      %d)
-                    """ % (get_path_id(cur, fnames[count][i], opts.workdir),
-                           get_path_id(cur, outfiles[count], opts.workdir),
+                    """ % (pathid,
+                           bedid,
                            counts[count][item]))
                     sum_reads += counts[count][item]
+                    cur.execute("""
+                    select Read,Frag,Trim,Enzyme,Entries from MAPPED_INPUTs where MAPPED_OUTPUTid=%d;
+                    """ % (pathid))
+                    read, frag, window, renz, num  = cur.fetchall()[0]
+                    try:
+                        cur.execute("""
+            insert into DESCRIPTIVE_STATs
+             (Id  , JOBid, Statistic                              ,   Value, PLOT_OUTPUTid, TEXT_OUTPUTid)
+            values
+             (NULL,    %d, 'Reads mapped (read%s %s, window: %s, RE: %s)',    '%d/%d',          NULL,            %d)
+                  """ % (jobid, read, frag, window, renz, counts[count][item],
+                         num, bedid))
+                    except lite.IntegrityError:
+                        pass
             except lite.IntegrityError:
                 print 'WARNING: already parsed (MAPPED_OUTPUTs)'
             try:
@@ -199,6 +215,8 @@ def save_to_db(opts, counts, multis, f_names1, f_names2, out_file1, out_file2,
                        sum_reads, multis[count]))
             except lite.IntegrityError:
                 print 'WARNING: already parsed (PARSED_OUTPUTs)'
+        print_db(cur, 'DESCRIPTIVE_STATs')
+            
         print_db(cur, 'MAPPED_INPUTs')
         print_db(cur, 'PATHs')
         print_db(cur, 'MAPPED_OUTPUTs')

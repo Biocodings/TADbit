@@ -19,7 +19,7 @@ mapping strategy
 """
 
 from argparse                             import HelpFormatter
-from pytadbit.mapping.restriction_enzymes import RESTRICTION_ENZYMES
+from pytadbit.mapping.restriction_enzymes import RESTRICTION_ENZYMES, format_re
 from pytadbit.utils.fastq_utils           import quality_plot
 from pytadbit.utils.file_handling         import which, mkdir
 from pytadbit.mapping.full_mapper         import full_mapping
@@ -236,7 +236,7 @@ def check_options(opts):
 
     # check RE name
     try:
-        _ = RESTRICTION_ENZYMES[opts.renz]
+        opts.renz = format_re(opts.renz)
     except KeyError:
         print ('\n\nERROR: restriction enzyme not found. Use one of:\n\n'
                + ' '.join(sorted(RESTRICTION_ENZYMES)) + '\n\n')
@@ -498,7 +498,17 @@ def save_to_db(opts, outfiles, launch_time, finish_time):
                 MAPPED_OUTPUTid int,
                 INDEXid int,
                 unique (PATHid,Entries,Read,Enzyme,WRKDIRid,MAPPED_OUTPUTid,INDEXid))""")
-
+            try:
+                cur.execute("""
+                create table DESCRIPTIVE_STATs
+                   (Id integer primary key,
+                    JOBid int,
+                    Statistic text,
+                    Value text,
+                    TEXT_OUTPUTid int,
+                    PLOT_OUTPUTid int)""")
+            except lite.OperationalError:
+                pass
         try:
             parameters = digest_parameters(opts, get_md5=False)
             param_hash = digest_parameters(opts, get_md5=True)
@@ -538,6 +548,7 @@ def save_to_db(opts, outfiles, launch_time, finish_time):
             get_path_id(cur, opts.index, opts.workdir)))
             except lite.IntegrityError:
                 pass
+        print_db(cur, 'DESCRIPTIVE_STATs')
         print_db(cur, 'MAPPED_INPUTs')
         print_db(cur, 'PATHs' )
         print_db(cur, 'JOBs'  )

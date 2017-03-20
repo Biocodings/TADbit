@@ -153,10 +153,10 @@ def _ascii_print_db(name, names, cols, rows):
     print ',-' + '-' * len(name) + '-.'
     print '| ' + name + ' |'
     print ',-' + '-.-'.join(['-' * cols[i] for i, v in enumerate(names)]) + '-.'
-    print '| ' + ' | '.join([('%{}s'.format(cols[i])) % str(v)
+    print '| ' + ' | '.join([('%{}s'.format(cols[i])) % str(v if v is not None else '')
                              for i, v in enumerate(names)]) + ' |'
     print '|-' + '-+-'.join(['-' * cols[i] for i, v in enumerate(names)]) + '-|'
-    print '| ' + '\n| '.join([' | '.join([('%{}s'.format(cols[i])) % str(v)
+    print '| ' + '\n| '.join([' | '.join([('%{}s'.format(cols[i])) % str(v if v is not None else '')
                                           for i, v in enumerate(row)]) + ' |'
                               for row in rows])
     print "'-" + '-^-'.join(['-' * cols[i] for i, v in enumerate(names)]) + "-'"
