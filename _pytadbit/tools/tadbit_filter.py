@@ -9,6 +9,7 @@ information needed
 from argparse                     import HelpFormatter
 from pytadbit.mapping             import get_intersection
 from pytadbit.utils.file_handling import mkdir
+from pytadbit.mapping.analyze     import plot_genomic_distribution
 from string                       import ascii_letters
 from random                       import random
 from os                           import path, remove
@@ -24,6 +25,8 @@ DESC = "Filter parsed Hi-C reads and get valid pair of reads to work with"
 
 def run(opts):
     check_options(opts)
+    mkdir(path.join(opts.workdir, 'figures'))
+    mkdir(path.join(opts.workdir, 'results'))
     launch_time = time.localtime()
 
     fname1, fname2 = load_parameters_fromdb(opts)
@@ -44,8 +47,8 @@ def run(opts):
 
         # compute insert size
         print 'Get insert size...'
-        hist_path = path.join(opts.workdir,
-                              'histogram_fragment_sizes_%s.pdf' % param_hash)
+        hist_path = path.join(opts.workdir, 'figures',
+                              '03_histogram_fragment_sizes_%s.pdf' % param_hash)
         median, max_f, mad = insert_sizes(
             reads, nreads=1000000, stats=('median', 'first_decay', 'MAD'),
             savefig=hist_path)
@@ -73,14 +76,31 @@ def run(opts):
     n_valid_pairs = apply_filter(reads, mreads, masked,
                                  filters=opts.apply)
 
+    print ("   Plotting genomic coverage")
+    outplots = []
+    outdatas = []
+    for cov_reso in opts.cov_reso:
+        outplot = path.join(opts.workdir, 'figures',
+                            '03_genomic_coverage_%s_%s.pdf' % (nice(cov_reso),
+                                                            param_hash))
+        outdata = path.join(opts.workdir, 'results',
+                            '03_genomic_coverage_%s_%s.tsv' % (nice(cov_reso),
+                                                            param_hash))
+        
+        plot_genomic_distribution(mreads, resolution=cov_reso,
+                                  savefig=outplot, savedata=outdata)
+        outplots.append(outplot)
+        outdatas.append(outdata)
     finish_time = time.localtime()
     print median, max_f, mad
     # save all job information to sqlite DB
     save_to_db(opts, count, multiples, reads, mreads, n_valid_pairs, masked,
-               hist_path, median, max_f, mad, launch_time, finish_time)
+               hist_path, median, max_f, mad, outplots, outdatas,
+               launch_time, finish_time)
 
 def save_to_db(opts, count, multiples, reads, mreads, n_valid_pairs, masked,
-               hist_path, median, max_f, mad, launch_time, finish_time):
+               hist_path, median, max_f, mad, outplots, outdatas,
+               launch_time, finish_time):
     if 'tmpdb' in opts and opts.tmpdb:
         # check lock
         while path.exists(path.join(opts.workdir, '__lock_db')):
@@ -128,6 +148,11 @@ def save_to_db(opts, count, multiples, reads, mreads, n_valid_pairs, masked,
         add_path(cur, mreads, '2D_BED', jobid, opts.workdir)
         add_path(cur,  reads, '2D_BED', jobid, opts.workdir)
         add_path(cur, hist_path, 'FIGURE', jobid, opts.workdir)
+        for outplot in outplots:
+            add_path(cur, outplot, 'FIGURE', jobid, opts.workdir)
+        for outdata in outdatas:
+            add_path(cur, outdata, 'RESULT', jobid, opts.workdir)
+            
         cur.execute("""
         insert into DESCRIPTIVE_STATs
         (Id  , JOBid, Statistic,                Value, TEXT_OUTPUTid, PLOT_OUTPUTid)
@@ -293,6 +318,11 @@ def populate_args(parser):
                         help='''[%(default)s] to exclude small genomic RE
                         fragments (smaller than sequenced reads)''')
 
+    glopts.add_argument('--cov_reso', dest='cov_reso', metavar="INT",
+                        nargs='*', action='store', default=[100000], type=int,
+                        help='''[%(default)s] to plot, and save the values of,
+                        the genomic coverage in bins of given size(s)''')
+    
     glopts.add_argument('--re_proximity', dest='re_proximity', metavar="NUM",
                         action='store', default=5, type=int,
                         help='''[%(default)s] to exclude read-ends falling too
@@ -345,4 +375,8 @@ def check_options(opts):
         exit('WARNING: exact same job already computed, see JOBs table above')
 
 
+def nice(reso):
+    if reso >= 1000000:
+        return '%dMb' % (reso / 1000000)
+    return '%dkb' % (reso / 1000)
 

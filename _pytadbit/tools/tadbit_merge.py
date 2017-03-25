@@ -169,14 +169,6 @@ def save_to_db(opts, mreads1, mreads2, decay_corr_dat, decay_corr_fig,
                 Parameters_md5 text,
                 unique (Parameters_md5))""")
             cur.execute("""
-            create table FILTER_OUTPUTs
-               (Id integer primary key,
-                PATHid int,
-                Name text,
-                Count int,
-                JOBid int,
-                unique (PATHid))""")
-            cur.execute("""
             create table MERGE_OUTPUTs
                (Id integer primary key,
                 JOBid int,
@@ -356,7 +348,6 @@ def save_to_db(opts, mreads1, mreads2, decay_corr_dat, decay_corr_fig,
         print_db(cur, 'JOBs')
         print_db(cur, 'MERGE_OUTPUTs')
         print_db(cur, 'MERGE_STATs')
-        print_db(cur, 'FILTER_OUTPUTs')
 
     if 'tmpdb' in opts and opts.tmpdb:
         # copy back file

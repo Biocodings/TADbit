@@ -839,6 +839,9 @@ def plot_genomic_distribution(fnam, first_read=True, resolution=10000,
                 plt.vlines(genome_seq[crm] / resolution, 0, max_y)
             plt.xlim((0, max_x))
             plt.ylim(ylim or (0, max_y))
+            plt.xlabel("Genomic bin (%s)" % nicer(resolution))
+            plt.ylabel("Interactions")
+            plt.tight_layout()
             plt.title(crm)
 
     if savefig:

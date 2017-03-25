@@ -31,21 +31,26 @@ def run(opts):
     else:
         mreads = path.join(opts.workdir, load_parameters_fromdb(opts))
 
+    mkdir(path.join(opts.workdir, 'figures'))
+    mkdir(path.join(opts.workdir, 'results'))
+
     print 'loading', mreads
     hic_data = load_hic_data_from_reads(mreads, opts.reso)
 
     mkdir(path.join(opts.workdir, '04_normalization'))
 
+    outplots = []
     print 'Get poor bins...'
+    outplot = path.join(opts.workdir, 'figures',
+                        '04_bad_columns_%s_%d_%d_%s.pdf' % (
+                            opts.reso, opts.perc_zeros, opts.min_count,
+                            param_hash)) if not opts.fast_filter else None
     try:
         hic_data.filter_columns(perc_zero=opts.perc_zeros, min_count=opts.min_count,
                                 draw_hist=True,
-                                by_mean=not opts.fast_filter, savefig=path.join(
-                                    opts.workdir, '04_normalization',
-                                    'bad_columns_%s_%d_%d_%s.pdf' % (
-                                        opts.reso, opts.perc_zeros, opts.min_count,
-                                        param_hash)) if
-                                not opts.fast_filter else None)
+                                by_mean=not opts.fast_filter, savefig=outplot)
+        if outplot:
+            outplots.append(outplot)
     except ValueError:
         raise ValueError('ERROR: probably all columns filtered out...')
     # bad columns
@@ -78,12 +83,13 @@ def run(opts):
 
     # Plot genomic distance vs interactions
     print 'Plot genomic distance vs interactions...'
-    inter_vs_gcoord = path.join(opts.workdir, '04_normalization',
-                                'interactions_vs_genomic-coords.pdf_%s_%s.pdf' % (
+    inter_vs_gcoord = path.join(opts.workdir, 'figures',
+                                '04_interactions_vs_genomic-coords.pdf_%s_%s.pdf' % (
                                     opts.reso, param_hash))
     (_, _, _), (a2, _, _), (_, _, _) = plot_distance_vs_interactions(
         hic_data, max_diff=10000, resolution=opts.reso, normalized=not opts.filter_only,
         savefig=inter_vs_gcoord)
+    outplots.append(inter_vs_gcoord)
     
     print 'Decay slope 0.7-10 Mb\t%s' % a2
 
@@ -121,14 +127,14 @@ def run(opts):
             intra_dir_nrm_fig = None
             intra_dir_raw_fig = None
         else:
-            intra_dir_nrm_fig = path.join(opts.workdir, '04_normalization',
-                                          'intra_chromosome_nrm_images_%s_%s' % (opts.reso, param_hash))
-            intra_dir_raw_fig = path.join(opts.workdir, '04_normalization',
-                                          'intra_chromosome_raw_images_%s_%s' % (opts.reso, param_hash))
-        intra_dir_nrm_txt = path.join(opts.workdir, '04_normalization',
-                                      'intra_chromosome_nrm_matrices_%s_%s' % (opts.reso, param_hash))
-        intra_dir_raw_txt = path.join(opts.workdir, '04_normalization',
-                                      'intra_chromosome_raw_matrices_%s_%s' % (opts.reso, param_hash))
+            intra_dir_nrm_fig = path.join(opts.workdir, 'figures',
+                                          '04_intra_chromosome_nrm_images_%s_%s' % (opts.reso, param_hash))
+            intra_dir_raw_fig = path.join(opts.workdir, 'figures',
+                                          '04_intra_chromosome_raw_images_%s_%s' % (opts.reso, param_hash))
+        intra_dir_nrm_txt = path.join(opts.workdir, 'results',
+                                      '04_intra_chromosome_nrm_matrices_%s_%s' % (opts.reso, param_hash))
+        intra_dir_raw_txt = path.join(opts.workdir, 'results',
+                                      '04_intra_chromosome_raw_matrices_%s_%s' % (opts.reso, param_hash))
         if not opts.filter_only:
             hic_map(hic_data, normalized=True, by_chrom='intra', cmap='jet',
                     name=path.split(opts.workdir)[-1],
@@ -144,15 +150,15 @@ def run(opts):
             inter_dir_raw_fig = None
         else:
             if not opts.filter_only:
-                inter_dir_nrm_fig = path.join(opts.workdir, '04_normalization',
-                                              'inter_chromosome_nrm_images_%s_%s' % (opts.reso, param_hash))
-            inter_dir_raw_fig = path.join(opts.workdir, '04_normalization',
-                                      'inter_chromosome_raw_images_%s_%s' % (opts.reso, param_hash))
+                inter_dir_nrm_fig = path.join(opts.workdir, 'figures',
+                                              '04_inter_chromosome_nrm_images_%s_%s' % (opts.reso, param_hash))
+            inter_dir_raw_fig = path.join(opts.workdir, 'figures',
+                                      '04_inter_chromosome_raw_images_%s_%s' % (opts.reso, param_hash))
         if not opts.filter_only:
-            inter_dir_nrm_txt = path.join(opts.workdir, '04_normalization',
-                                          'inter_chromosome_nrm_matrices_%s_%s' % (opts.reso, param_hash))
-        inter_dir_raw_txt = path.join(opts.workdir, '04_normalization',
-                                  'inter_chromosome_raw_matrices_%s_%s' % (opts.reso, param_hash))
+            inter_dir_nrm_txt = path.join(opts.workdir, 'results',
+                                          '04_inter_chromosome_nrm_matrices_%s_%s' % (opts.reso, param_hash))
+        inter_dir_raw_txt = path.join(opts.workdir, 'results',
+                                  '04_inter_chromosome_raw_matrices_%s_%s' % (opts.reso, param_hash))
         if not opts.filter_only:
             hic_map(hic_data, normalized=True, by_chrom='inter', cmap='jet',
                     name=path.split(opts.workdir)[-1],
@@ -168,15 +174,15 @@ def run(opts):
             genom_map_raw_fig = None
         else:
             if not opts.filter_only:
-                genom_map_nrm_fig = path.join(opts.workdir, '04_normalization',
-                                              'genomic_maps_nrm_%s_%s.pdf' % (opts.reso, param_hash))
-            genom_map_raw_fig = path.join(opts.workdir, '04_normalization',
-                                          'genomic_maps_raw_%s_%s.pdf' % (opts.reso, param_hash))
+                genom_map_nrm_fig = path.join(opts.workdir, 'figures',
+                                              '04_genomic_maps_nrm_%s_%s.pdf' % (opts.reso, param_hash))
+            genom_map_raw_fig = path.join(opts.workdir, 'figures',
+                                          '04_genomic_maps_raw_%s_%s.pdf' % (opts.reso, param_hash))
         if not opts.filter_only:
-            genom_map_nrm_txt = path.join(opts.workdir, '04_normalization',
-                                          'genomic_nrm_%s_%s.tsv' % (opts.reso, param_hash))
-        genom_map_raw_txt = path.join(opts.workdir, '04_normalization',
-                                      'genomic_raw_%s_%s.tsv' % (opts.reso, param_hash))
+            genom_map_nrm_txt = path.join(opts.workdir, 'results',
+                                          '04_genomic_nrm_%s_%s.tsv' % (opts.reso, param_hash))
+        genom_map_raw_txt = path.join(opts.workdir, 'results',
+                                      '04_genomic_raw_%s_%s.tsv' % (opts.reso, param_hash))
         if not opts.filter_only:
             hic_map(hic_data, normalized=True, cmap='jet',
                     name=path.split(opts.workdir)[-1],
@@ -188,7 +194,7 @@ def run(opts):
     finish_time = time.localtime()
 
     save_to_db (opts, cis_trans_N_D, cis_trans_N_d, cis_trans_n_D, cis_trans_n_d,
-                a2, bad_columns_file, bias_file, inter_vs_gcoord, mreads,
+                a2, bad_columns_file, bias_file, outplots, mreads,
                 len(hic_data.bads.keys()), len(hic_data),
                 intra_dir_nrm_fig, intra_dir_nrm_txt,
                 inter_dir_nrm_fig, inter_dir_nrm_txt,
@@ -199,7 +205,7 @@ def run(opts):
                 pickle_path, launch_time, finish_time)
 
 def save_to_db(opts, cis_trans_N_D, cis_trans_N_d, cis_trans_n_D, cis_trans_n_d,
-               a2, bad_columns_file, bias_file, inter_vs_gcoord, mreads,
+               a2, bad_columns_file, bias_file, outplots, mreads,
                nbad_columns, ncolumns,
                intra_dir_nrm_fig, intra_dir_nrm_txt,
                inter_dir_nrm_fig, inter_dir_nrm_txt,
@@ -260,7 +266,8 @@ def save_to_db(opts, cis_trans_N_D, cis_trans_N_d, cis_trans_n_D, cis_trans_n_d,
         add_path(cur, pickle_path     , 'PICKLE'     , jobid, opts.workdir)
         add_path(cur, bad_columns_file, 'BAD_COLUMNS', jobid, opts.workdir)
         add_path(cur, bias_file       , 'BIASES'     , jobid, opts.workdir)
-        add_path(cur, inter_vs_gcoord , 'FIGURE'     , jobid, opts.workdir)
+        for outplot in outplots:
+            add_path(cur, outplot     , 'FIGURE'     , jobid, opts.workdir)
         add_path(cur, mreads          , '2D_BED'     , jobid, opts.workdir)
         # get pathid of input
         cur.execute("select id from paths where path = '%s'" % (path.relpath(mreads, opts.workdir)))
@@ -317,7 +324,6 @@ def save_to_db(opts, cis_trans_N_D, cis_trans_N_d, cis_trans_n_D, cis_trans_n_d,
             print_db(cur, 'PARSED_OUTPUTs')
         except lite.OperationalError:
             pass
-        print_db(cur, 'FILTER_OUTPUTs')
         print_db(cur, 'NORMALIZE_OUTPUTs')
     if 'tmpdb' in opts and opts.tmpdb:
         # copy back file
@@ -354,8 +360,8 @@ def load_parameters_fromdb(opts):
         # fetch path to parsed BED files
         cur.execute("""
         select distinct path from paths
-        inner join filter_outputs on filter_outputs.pathid = paths.id
-        where filter_outputs.name = 'valid-pairs' and paths.jobid = %s
+        inner join descriptive_stats on descriptive_stats.TEXT_OUTPUTid = paths.id
+        where descriptive_stats.statistic = 'valid-pairs' and paths.jobid = %s
         """ % parse_jobid)
         return cur.fetchall()[0][0]
 
