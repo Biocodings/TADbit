@@ -254,10 +254,10 @@ def _get_restraints():
                 IMP.core.HarmonicUpperBound(model['container']['radius'],
                                             model['container']['cforce']), bb),
             model['ps'])
-	try:
-	       model['model'].add_restraint(rb)
-	except:
-	       model['rs'].add_restraint(rb) # 2.6.1 compat
+        try:
+	    model['model'].add_restraint(rb)
+        except:
+	    model['rs'].add_restraint(rb) # 2.6.1 compat
         rb.evaluate(False)
     # elif model['container']['shape']:
     #     raise noti

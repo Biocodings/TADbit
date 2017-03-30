@@ -359,6 +359,7 @@ def save_to_db(opts, mreads1, mreads2, decay_corr_dat, decay_corr_fig,
     except OSError:
         pass
 
+    
 def load_parameters_fromdb(workdir, jobid, opts, tmpdb):
     if tmpdb:
         dbfile = tmpdb
@@ -435,11 +436,12 @@ def load_parameters_fromdb(workdir, jobid, opts, tmpdb):
         else:
             cur.execute("""
             select distinct path from paths
-            inner join filter_outputs on filter_outputs.pathid = paths.id
-            where filter_outputs.name = 'valid-pairs' and paths.jobid = %s
+            inner join descriptive_stats on descriptive_stats.TEXT_OUTPUTid = paths.id
+            where descriptive_stats.statistic = 'valid-pairs' and paths.jobid = %s
             """ % parse_jobid)
             mreads = cur.fetchall()[0][0]
         return bad_co, biases, mreads, reso
+
 
 def populate_args(parser):
     """
@@ -458,7 +460,6 @@ def populate_args(parser):
                         action='store', default=None, type=str, 
                         help='''path to working directory of the first HiC data
                         sample to merge''')
-
 
     glopts.add_argument('-w2', '--workdir2', dest='workdir2', metavar="PATH",
                         action='store', default=None, type=str,
@@ -495,7 +496,7 @@ def populate_args(parser):
                         help=('[%(default)s%%] maximum percentage of zeroes '
                               'allowed per column.'))
 
-    glopts.add_argument('--normalization', dest='resolution', metavar="STR",
+    glopts.add_argument('--normalization', dest='normalization', metavar="STR",
                         action='store', default='ICE', nargs='+', type=str,
                         choices=['ICE', 'EXP'],
                         help='''[%(default)s] normalization(s) to apply.
@@ -546,7 +547,7 @@ def populate_args(parser):
                         metavar='PATH', type=str,
                         help='''if provided uses this directory to manipulate the
                         database''')
-
+    
     parser.add_argument_group(glopts)
 
 
@@ -595,6 +596,9 @@ def check_options(opts):
             if opts.workdir2:
                 remove(path.join(dbdir, dbfile2))
         exit('WARNING: exact same job already computed, see JOBs table above')
+    # check if we have resolution
+    if not opts.reso and not opts.skip_comparison:
+        exit('ERROR: need to input a resolution unless you skip the comparison.')
 
 def nice(reso):
     if reso >= 1000000:
