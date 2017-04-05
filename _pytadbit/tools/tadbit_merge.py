@@ -85,10 +85,10 @@ def run(opts):
                                   for l in open(biases2))
         elif opts.norm:
             raise Exception('ERROR: biases or filtered-columns not found')
-        decay_corr_dat = path.join(opts.workdir, '00_merge', 'decay_corr_dat_%s_%s.txt' % (opts.reso, param_hash))
-        decay_corr_fig = path.join(opts.workdir, '00_merge', 'decay_corr_dat_%s_%s.png' % (opts.reso, param_hash))
-        eigen_corr_dat = path.join(opts.workdir, '00_merge', 'eigen_corr_dat_%s_%s.txt' % (opts.reso, param_hash))
-        eigen_corr_fig = path.join(opts.workdir, '00_merge', 'eigen_corr_dat_%s_%s.png' % (opts.reso, param_hash))
+        decay_corr_dat = path.join(opts.workdir, '00_merge', '00_decay_corr_dat_%s_%s.txt' % (opts.reso, param_hash))
+        decay_corr_fig = path.join(opts.workdir, '00_merge', '00_decay_corr_dat_%s_%s.%s' % (opts.reso, param_hash, opts.fig_format))
+        eigen_corr_dat = path.join(opts.workdir, '00_merge', '00_eigen_corr_dat_%s_%s.txt' % (opts.reso, param_hash))
+        eigen_corr_fig = path.join(opts.workdir, '00_merge', '00_eigen_corr_dat_%s_%s.%s' % (opts.reso, param_hash, opts.fig_format))
     else:
         hic_data1 = {}
         hic_data2 = {}
@@ -182,7 +182,6 @@ def save_to_db(opts, mreads1, mreads2, decay_corr_dat, decay_corr_fig,
             create table MERGE_STATs
                (Id integer primary key,
                 JOBid int,
-                Inputs text,
                 decay_corr text,
                 eigen_corr text,
                 N_columns int,
@@ -193,6 +192,14 @@ def save_to_db(opts, mreads1, mreads2, decay_corr_dat, decay_corr_fig,
                 bias2Path int,
                 bads2Path int,
                 unique (JOBid))""")
+            cur.execute("""
+            create table DESCRIPTIVE_STATs
+               (Id integer primary key,
+               JOBid int,
+                Statistic text,
+                Value text,
+                TEXT_OUTPUTid int,
+                PLOT_OUTPUTid int            )""")
         try:
             parameters = digest_parameters(opts, get_md5=False)
             param_hash = digest_parameters(opts, get_md5=True )
@@ -231,10 +238,10 @@ def save_to_db(opts, mreads1, mreads2, decay_corr_dat, decay_corr_fig,
             badsid2 = get_path_id(cur, bad_co2, opts.workdir)
             biasid2 = get_path_id(cur, biases2, opts.workdir)
         else:
-            badsid1 = 0
-            biasid1 = 0
-            badsid2 = 0
-            biasid2 = 0
+            badsid1 = 'NULL'
+            biasid1 = 'NULL'
+            badsid2 = 'NULL'
+            biasid2 = 'NULL'
         
         cur.execute("select id from paths where path = '%s'" % (
             path.relpath(mreads1, opts.workdir)))
@@ -276,7 +283,7 @@ def save_to_db(opts, mreads1, mreads2, decay_corr_dat, decay_corr_fig,
             insert into MERGE_STATs
             (Id  , JOBid, N_columns,   N_filtered, Resolution, decay_corr, eigen_corr, bias1Path, bads1Path, bias2Path, bads2Path)
             values
-            (NULL,    %d,        %d,           %d,         %d,       '%s',       '%s',        %d,        %d,        %d,        %d)
+            (NULL,    %d,        %d,           %d,         %d,       '%s',       '%s',        %s,        %s,        %s,        %s)
             """ % (jobid,  ncolumns, nbad_columns, opts.reso , decay_corr, eigen_corr,   biasid1,   badsid1,   biasid2,   badsid2))
                 
         masked1 = {'valid-pairs': {'count': nreads}}
@@ -291,10 +298,16 @@ def save_to_db(opts, mreads1, mreads2, decay_corr_dat, decay_corr_fig,
             else:
                 dbfile1 = path.join(opts.workdir1, 'trace.db')
             tmpcon = lite.connect(dbfile1)
+            # get all statistics on read filtering from previous run
             with tmpcon:
                 tmpcur = tmpcon.cursor()
-                tmpcur.execute("select Name, PATHid, Count from filter_outputs")
+                tmpcur.execute("select Id from Jobs where type='Filter'")
+                filter_jobid = tmpcur.fetchall()[0][0]
+                tmpcur.execute("select Statistic, TEXT_OUTPUTid, Value "
+                               "from DESCRIPTIVE_STATs where JobId=%d" % (filter_jobid))
                 for name, pathid, count in tmpcur.fetchall():
+                    if not pathid:
+                        continue
                     res = tmpcur.execute("select Path from PATHs where Id = %d" % (pathid))
                     tmppath = res.fetchall()[0][0]
                     masked1[name] = {'path': tmppath, 'count': count}
@@ -314,8 +327,13 @@ def save_to_db(opts, mreads1, mreads2, decay_corr_dat, decay_corr_fig,
             tmpcon = lite.connect(dbfile2)
             with tmpcon:
                 tmpcur = tmpcon.cursor()
-                tmpcur.execute("select Name, PATHid, Count from filter_outputs")
+                tmpcur.execute("select Id from Jobs where type='Filter'")
+                filter_jobid = tmpcur.fetchall()[0][0]
+                tmpcur.execute("select Statistic, TEXT_OUTPUTid, Value "
+                               "from DESCRIPTIVE_STATs where JobId=%d" % (filter_jobid))
                 for name, pathid, count in tmpcur.fetchall():
+                    if not pathid:
+                        continue
                     res = tmpcur.execute("select Path from PATHs where Id = %d" % (pathid))
                     tmppath = res.fetchall()[0][0]
                     masked2[name] = {'path': tmppath, 'count': count}
@@ -335,19 +353,30 @@ def save_to_db(opts, mreads1, mreads2, decay_corr_dat, decay_corr_fig,
                 add_path(cur, outmask, 'FILTER', jobid, opts.workdir)
             else:
                 outmask = outbed
-
+            try:
+                sumf = int(masked1[f]['count']) + int(masked2[f]['count'])
+            except ValueError:
+                print masked1[f]['count']
+                items1 = dict([i.split(':') for i in masked1[f]['count'].split(' ')])
+                items2 = dict([i.split(':') for i in masked2[f]['count'].split(' ')])
+                sumf = {}
+                for k in sorted(set(items1.keys() + items2.keys())):
+                    sumf[k] = int(items1[k]) + int(items2[k])
+                    
+                sumf = ' '.join(['%s:%d' % (k, sumf[k]) for k in sorted(sumf.keys())])
             cur.execute("""
-            insert into FILTER_OUTPUTs
-            (Id  , PATHid, Name, Count, JOBid)
+            insert into DESCRIPTIVE_STATs
+            (Id  , JOBid, Statistic, Value, TEXT_OUTPUTid, PLOT_OUTPUTid)
             values
-            (NULL,     %d, '%s',  '%s',    %d)
-            """ % (get_path_id(cur, outmask, opts.workdir),
-                   f, masked1[f]['count'] + masked2[f]['count'], jobid))
+            (NULL,     %d,     '%s',  '%s',            %d,          NULL)
+            """ % (jobid, f, sumf,
+                   get_path_id(cur, outmask, opts.workdir)))
 
         print_db(cur, 'PATHs')
         print_db(cur, 'JOBs')
         print_db(cur, 'MERGE_OUTPUTs')
         print_db(cur, 'MERGE_STATs')
+        print_db(cur, 'DESCRIPTIVE_STATs')
 
     if 'tmpdb' in opts and opts.tmpdb:
         # copy back file
@@ -359,7 +388,7 @@ def save_to_db(opts, mreads1, mreads2, decay_corr_dat, decay_corr_fig,
     except OSError:
         pass
 
-    
+
 def load_parameters_fromdb(workdir, jobid, opts, tmpdb):
     if tmpdb:
         dbfile = tmpdb
@@ -429,8 +458,8 @@ def load_parameters_fromdb(workdir, jobid, opts, tmpdb):
                 warn('WARNING: normalization not found')
                 cur.execute("""
                 select distinct path from paths
-                inner join filter_outputs on filter_outputs.pathid = paths.id
-                where filter_outputs.name = 'valid-pairs' and paths.jobid = %s
+                inner join descriptive_stats on descriptive_stats.TEXT_OUTPUTid = paths.id
+                where descriptive_stats.statistic = 'valid-pairs' and paths.jobid = %s
                 """ % parse_jobid)
                 mreads = cur.fetchall()[0][0]
         else:
@@ -482,6 +511,10 @@ def populate_args(parser):
                         action='store', default=None, type=int, 
                         help='''resolution at which to do the comparison,
                         and generate the matrices.''')
+
+    glopts.add_argument('--fig_format', dest='fig_format', metavar='STRING',
+                        choices=['pdf', 'png'], default='png',
+                        help='''format in which to write the figures generated''')
 
     glopts.add_argument('--skip_comparison', dest='skip_comparison',
                         action='store_true', default=False,

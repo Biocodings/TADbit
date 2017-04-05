@@ -718,17 +718,18 @@ class HiC_data(dict):
             if savefig or show:
                 vmin = kwargs.get('vmin', -1)
                 vmax = kwargs.get('vmax',  1)
+                fig_format = kwargs.get('fig_format',  'pdf')
                 if vmin == 'auto' == vmax:
                     vmax = max([abs(npperc(matrix, 99.5)),
                                 abs(npperc(matrix, 0.5))])
                     vmin = -vmax
                 plot_compartments(
                     sec, first, cmprts, matrix, show,
-                    savefig + '/chr' + str(sec) + suffix + '.pdf' if savefig else None,
+                    savefig + '/chr' + str(sec) + suffix + '.' + fig_format if savefig else None,
                     vmin=vmin, vmax=vmax, whichpc=ev_num)
                 plot_compartments_summary(
                     sec, cmprts, show,
-                    savefig + '/chr' + str(sec) + suffix + '_summ.pdf' if savefig else None)
+                    savefig + '/chr' + str(sec) + suffix + '_summ.' + fig_format if savefig else None)
             count += 1
 
         if label_compartments == 'hmm':

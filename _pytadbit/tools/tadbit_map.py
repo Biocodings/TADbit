@@ -48,10 +48,11 @@ def run(opts):
     if opts.quality_plot:
         mkdir(path.join(opts.workdir, '01_mapped_r%d' % (opts.read)))
         fig_path = path.join(opts.workdir, '01_mapped_r%d' % (opts.read),
-                            path.split(opts.fastq)[-1] + '_%s.pdf' % (param_hash))
+                             'QCplot_' + path.split(opts.fastq)[-1] + '_%s.%s' % (param_hash,
+                                                                                  opts.fig_format))
         
         logging.info('Generating Hi-C QC plot at:\n  ' +
-               path.join(opts.workdir, path.split(opts.fastq)[-1] + '.pdf'))
+               path.join(opts.workdir, path.split(opts.fastq)[-1] + '.' + opts.fig_format))
         dangling_ends, ligated = quality_plot(opts.fastq, r_enz=opts.renz,
                                               nreads=opts.nreads, paired=False,
                                               savefig=fig_path)
@@ -160,6 +161,11 @@ def populate_args(parser):
                         metavar='PATH', type=str,
                         help='''if provided uses this directory to manipulate the
                         database''')
+
+
+    glopts.add_argument('--fig_format', dest='fig_format', metavar='STRING',
+                        choices=['pdf', 'png'], default='png',
+                        help='''format in which to write the figures generated''')
 
     mapper.add_argument('--iterative', dest='iterative', default=False,
                         action='store_true',

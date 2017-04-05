@@ -31,9 +31,6 @@ def run(opts):
     else:
         mreads = path.join(opts.workdir, load_parameters_fromdb(opts))
 
-    mkdir(path.join(opts.workdir, 'figures'))
-    mkdir(path.join(opts.workdir, 'results'))
-
     print 'loading', mreads
     hic_data = load_hic_data_from_reads(mreads, opts.reso)
 
@@ -41,10 +38,10 @@ def run(opts):
 
     outplots = []
     print 'Get poor bins...'
-    outplot = path.join(opts.workdir, 'figures',
-                        '04_bad_columns_%s_%d_%d_%s.pdf' % (
+    outplot = path.join(opts.workdir, '04_normalization',
+                        'bad_columns_%s_%d_%d_%s.%s' % (
                             opts.reso, opts.perc_zeros, opts.min_count,
-                            param_hash)) if not opts.fast_filter else None
+                            param_hash, opts.fig_format)) if not opts.fast_filter else None
     try:
         hic_data.filter_columns(perc_zero=opts.perc_zeros, min_count=opts.min_count,
                                 draw_hist=True,
@@ -83,9 +80,9 @@ def run(opts):
 
     # Plot genomic distance vs interactions
     print 'Plot genomic distance vs interactions...'
-    inter_vs_gcoord = path.join(opts.workdir, 'figures',
-                                '04_interactions_vs_genomic-coords.pdf_%s_%s.pdf' % (
-                                    opts.reso, param_hash))
+    inter_vs_gcoord = path.join(opts.workdir, '04_normalization',
+                                'interactions_vs_genomic-coords_%s_%s.%s' % (
+                                    opts.reso, param_hash, opts.fig_format))
     (_, _, _), (a2, _, _), (_, _, _) = plot_distance_vs_interactions(
         hic_data, max_diff=10000, resolution=opts.reso, normalized=not opts.filter_only,
         savefig=inter_vs_gcoord)
@@ -127,14 +124,14 @@ def run(opts):
             intra_dir_nrm_fig = None
             intra_dir_raw_fig = None
         else:
-            intra_dir_nrm_fig = path.join(opts.workdir, 'figures',
-                                          '04_intra_chromosome_nrm_images_%s_%s' % (opts.reso, param_hash))
-            intra_dir_raw_fig = path.join(opts.workdir, 'figures',
-                                          '04_intra_chromosome_raw_images_%s_%s' % (opts.reso, param_hash))
-        intra_dir_nrm_txt = path.join(opts.workdir, 'results',
-                                      '04_intra_chromosome_nrm_matrices_%s_%s' % (opts.reso, param_hash))
-        intra_dir_raw_txt = path.join(opts.workdir, 'results',
-                                      '04_intra_chromosome_raw_matrices_%s_%s' % (opts.reso, param_hash))
+            intra_dir_nrm_fig = path.join(opts.workdir, '04_normalization',
+                                          'intra_chromosome_nrm_images_%s_%s' % (opts.reso, param_hash))
+            intra_dir_raw_fig = path.join(opts.workdir, '04_normalization',
+                                          'intra_chromosome_raw_images_%s_%s' % (opts.reso, param_hash))
+        intra_dir_nrm_txt = path.join(opts.workdir, '04_normalization',
+                                      'intra_chromosome_nrm_matrices_%s_%s' % (opts.reso, param_hash))
+        intra_dir_raw_txt = path.join(opts.workdir, '04_normalization',
+                                      'intra_chromosome_raw_matrices_%s_%s' % (opts.reso, param_hash))
         if not opts.filter_only:
             hic_map(hic_data, normalized=True, by_chrom='intra', cmap='jet',
                     name=path.split(opts.workdir)[-1],
@@ -150,15 +147,15 @@ def run(opts):
             inter_dir_raw_fig = None
         else:
             if not opts.filter_only:
-                inter_dir_nrm_fig = path.join(opts.workdir, 'figures',
-                                              '04_inter_chromosome_nrm_images_%s_%s' % (opts.reso, param_hash))
-            inter_dir_raw_fig = path.join(opts.workdir, 'figures',
-                                      '04_inter_chromosome_raw_images_%s_%s' % (opts.reso, param_hash))
+                inter_dir_nrm_fig = path.join(opts.workdir, '04_normalization',
+                                              'inter_chromosome_nrm_images_%s_%s' % (opts.reso, param_hash))
+            inter_dir_raw_fig = path.join(opts.workdir, '04_normalization',
+                                      'inter_chromosome_raw_images_%s_%s' % (opts.reso, param_hash))
         if not opts.filter_only:
-            inter_dir_nrm_txt = path.join(opts.workdir, 'results',
-                                          '04_inter_chromosome_nrm_matrices_%s_%s' % (opts.reso, param_hash))
-        inter_dir_raw_txt = path.join(opts.workdir, 'results',
-                                  '04_inter_chromosome_raw_matrices_%s_%s' % (opts.reso, param_hash))
+            inter_dir_nrm_txt = path.join(opts.workdir, '04_normalization',
+                                          'inter_chromosome_nrm_matrices_%s_%s' % (opts.reso, param_hash))
+        inter_dir_raw_txt = path.join(opts.workdir, '04_normalization',
+                                  'inter_chromosome_raw_matrices_%s_%s' % (opts.reso, param_hash))
         if not opts.filter_only:
             hic_map(hic_data, normalized=True, by_chrom='inter', cmap='jet',
                     name=path.split(opts.workdir)[-1],
@@ -174,15 +171,15 @@ def run(opts):
             genom_map_raw_fig = None
         else:
             if not opts.filter_only:
-                genom_map_nrm_fig = path.join(opts.workdir, 'figures',
-                                              '04_genomic_maps_nrm_%s_%s.pdf' % (opts.reso, param_hash))
-            genom_map_raw_fig = path.join(opts.workdir, 'figures',
-                                          '04_genomic_maps_raw_%s_%s.pdf' % (opts.reso, param_hash))
+                genom_map_nrm_fig = path.join(opts.workdir, '04_normalization',
+                                              'genomic_maps_nrm_%s_%s.%s' % (opts.reso, param_hash, opts.fig_format))
+            genom_map_raw_fig = path.join(opts.workdir, '04_normalization',
+                                          'genomic_maps_raw_%s_%s.%s' % (opts.reso, param_hash, opts.fig_format))
         if not opts.filter_only:
-            genom_map_nrm_txt = path.join(opts.workdir, 'results',
-                                          '04_genomic_nrm_%s_%s.tsv' % (opts.reso, param_hash))
-        genom_map_raw_txt = path.join(opts.workdir, 'results',
-                                      '04_genomic_raw_%s_%s.tsv' % (opts.reso, param_hash))
+            genom_map_nrm_txt = path.join(opts.workdir, '04_normalization',
+                                          'genomic_nrm_%s_%s.tsv' % (opts.reso, param_hash))
+        genom_map_raw_txt = path.join(opts.workdir, '04_normalization',
+                                      'genomic_raw_%s_%s.tsv' % (opts.reso, param_hash))
         if not opts.filter_only:
             hic_map(hic_data, normalized=True, cmap='jet',
                     name=path.split(opts.workdir)[-1],
@@ -425,6 +422,12 @@ def populate_args(parser):
                         "intra" to keep intra-chromosomal matrices, "inter" to
                         keep inter-chromosomal matrices and "genome", to keep
                         genomic matrices.''')
+
+
+    glopts.add_argument('--fig_format', dest='fig_format', metavar='STRING',
+                        choices=['pdf', 'png'], default='png',
+                        help='''format in which to write the figures generated''')
+    
 
     glopts.add_argument('--only_txt', dest='only_txt', action='store_true',
                       default=False,

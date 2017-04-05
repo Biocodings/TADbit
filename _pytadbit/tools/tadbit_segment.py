@@ -22,6 +22,7 @@ import time
 
 DESC = 'Finds TAD or compartment segmentation in Hi-C data.'
 
+
 def run(opts):
     check_options(opts)
     launch_time = time.localtime()
@@ -66,11 +67,16 @@ def run(opts):
                               'compartments_%s' % (nice(reso)))
         mkdir(cmprt_dir)
         firsts = hic_data.find_compartments(crms=opts.crms,
-                                            label_compartments='cluster',
+                                            label_compartments='none',
                                             savefig=cmprt_dir,
                                             suffix=param_hash, log=cmprt_dir,
-                                            rich_in_A=opts.rich_in_A)
+                                            rich_in_A=opts.rich_in_A,
+                                            vmin='auto', vmax='auto',
+                                            fig_format=opts.fig_format)
 
+        cmprt_dir = path.join(opts.workdir, '05_segmentation',
+                              'compartments_%s' % (nice(reso)))
+        mkdir(cmprt_dir)
         for crm in opts.crms or hic_data.chromosomes:
             if not crm in firsts:
                 continue
@@ -82,7 +88,7 @@ def run(opts):
             ev_file.close()
 
         for crm in opts.crms or hic_data.chromosomes:
-            cmprt_file = path.join(cmprt_dir, '%s_%s.tsv' % (crm, param_hash))
+            cmprt_file = path.join(cmprt_dir, '%s_compartments_%s.tsv' % (crm, param_hash))
             hic_data.write_compartments(cmprt_file,
                                         chroms=[crm])
             cmp_result[crm] = {'path': cmprt_file,
@@ -93,7 +99,7 @@ def run(opts):
     if not opts.only_compartments:
         print 'Searching TADs'
         tad_dir = path.join(opts.workdir, '05_segmentation',
-                             'tads_%s' % (nice(reso)))
+                            'TADs_%s' % (nice(reso)))
         mkdir(tad_dir)
         for crm in hic_data.chromosomes:
             if opts.crms and not crm in opts.crms:
@@ -121,7 +127,7 @@ def run(opts):
                     tad, int(tads[tad]['start'] + 1), int(tads[tad]['end'] + 1),
                     abs(tads[tad]['score']), '\t%s' % (round(
                         float(tads[tad]['height']), 3)))
-            out_tad = path.join(tad_dir, '%s_%s.tsv' % (crm, param_hash))
+            out_tad = path.join(tad_dir, '%s_tads_%s.tsv' % (crm, param_hash))
             out = open(out_tad, 'w')
             out.write(table)
             out.close()
@@ -134,6 +140,7 @@ def run(opts):
         save_to_db(opts, cmp_result, tad_result, reso, inputs, 
                    launch_time, finish_time)
 
+        
 def save_to_db(opts, cmp_result, tad_result, reso, inputs,
                launch_time, finish_time):
     if 'tmpdb' in opts and opts.tmpdb:
@@ -206,6 +213,7 @@ def save_to_db(opts, cmp_result, tad_result, reso, inputs,
         # release lock
         remove(path.join(opts.workdir, '__lock_db'))
 
+        
 def load_parameters_fromdb(opts):
     if 'tmpdb' in opts and opts.tmpdb:
         dbfile = opts.tmpdb
@@ -253,6 +261,7 @@ def load_parameters_fromdb(opts):
         return (bad_co, bad_co_id, biases, biases_id,
                 mreads, mreads_id, reso)
 
+    
 def populate_args(parser):
     """
     parse option from call
@@ -309,6 +318,10 @@ def populate_args(parser):
                         protein coding gene or other active epigenetic mark,
                         to be used to label compartments instead of using
                         the relative interaction count.''')
+
+    glopts.add_argument('--fig_format', dest='fig_format', metavar='STRING',
+                        choices=['pdf', 'png'], default='png',
+                        help='''format in which to write the figures generated''')
 
     glopts.add_argument('--only_compartments', dest='only_compartments',
                         action='store_true', default=False, 
